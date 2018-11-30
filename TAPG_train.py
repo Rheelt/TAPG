@@ -1,4 +1,12 @@
 # -*- coding: utf-8 -*-
+"""
+Created on Fri Feb 17 20:25:55 2017
+
+@author: wzmsltw
+
+Refactor on 2018-11-30
+@author: Rhee
+"""
 import tensorflow as tf
 import numpy as np
 import pandas as pd
@@ -44,7 +52,7 @@ def loop_body(idx,
             b_gbboxes, b_match_scores]
 
 
-def tem_bboxes_encode(anchors_xmin, anchors_xmax,
+def tapg_bboxes_encode(anchors_xmin, anchors_xmax,
                       gbboxes, gIndex,
                       config):
     """Calculate overlap between anchors and ground truth.
@@ -84,7 +92,7 @@ def binary_logistic_loss(scores, anchors):
     return loss, num_sample
 
 
-def tem_loss(anchors_action, anchors_start, anchors_end,
+def tapg_loss(anchors_action, anchors_start, anchors_end,
              match_scores_action, match_scores_start, match_scores_end, config):
     loss_action, num_sample_action = binary_logistic_loss(match_scores_action, anchors_action)
     loss_start, num_sample_start = binary_logistic_loss(match_scores_start, anchors_start)
@@ -95,7 +103,7 @@ def tem_loss(anchors_action, anchors_start, anchors_end,
     return loss
 
 
-def tem_train(X_feature, anchors_xmin, anchors_xmax, Y_bbox, Index, LR, config):
+def tapg_train(X_feature, anchors_xmin, anchors_xmax, Y_bbox, Index, LR, config):
 
     layer1 = tf.layers.conv1d(inputs=X_feature, filters=512, kernel_size=3, strides=1, padding='same',
                                   activation=tf.nn.relu)
@@ -125,15 +133,15 @@ def tem_train(X_feature, anchors_xmin, anchors_xmax, Y_bbox, Index, LR, config):
 
     gt_start_bboxs = tf.stack((gt_xmins - gt_duration_boundary / 2, gt_xmins + gt_duration_boundary / 2), axis=1)
     gt_end_bboxs = tf.stack((gt_xmaxs - gt_duration_boundary / 2, gt_xmaxs + gt_duration_boundary / 2), axis=1)
-    match_scores_start = tem_bboxes_encode(anchors_xmin, anchors_xmax, gt_start_bboxs, Index, config)
-    match_scores_end = tem_bboxes_encode(anchors_xmin, anchors_xmax, gt_end_bboxs, Index, config)
-    match_scores_action = tem_bboxes_encode(anchors_xmin, anchors_xmax, Y_bbox, Index, config)
+    match_scores_start = tapg_bboxes_encode(anchors_xmin, anchors_xmax, gt_start_bboxs, Index, config)
+    match_scores_end = tapg_bboxes_encode(anchors_xmin, anchors_xmax, gt_end_bboxs, Index, config)
+    match_scores_action = tapg_bboxes_encode(anchors_xmin, anchors_xmax, Y_bbox, Index, config)
 
     match_scores_action = tf.reshape(match_scores_action, [-1])
     match_scores_start = tf.reshape(match_scores_start, [-1])
     match_scores_end = tf.reshape(match_scores_end, [-1])
 
-    loss = tem_loss(anchors_action, anchors_start, anchors_end,
+    loss = tapg_loss(anchors_action, anchors_start, anchors_end,
                     match_scores_action, match_scores_start, match_scores_end, config)
 
     trainable_variables = tf.trainable_variables()
@@ -185,7 +193,7 @@ if __name__ == "__main__":
     Y_bbox = tf.placeholder(tf.float32, [None, 2])
     Index = tf.placeholder(tf.int32, [config.batch_size + 1])
     LR = tf.placeholder(tf.float32)
-    optimizer, loss, trainable_variables = tem_train(X_feature, X_xmin, X_xmax, Y_bbox,
+    optimizer, loss, trainable_variables = tapg_train(X_feature, X_xmin, X_xmax, Y_bbox,
                                                           Index, LR, config)
 
     model_saver = tf.train.Saver(var_list=trainable_variables, max_to_keep=80)
@@ -227,7 +235,7 @@ if __name__ == "__main__":
             train_info[key].append(np.mean(mini_info[key]))
         print 'TRAIN' + str(epoch) + '   ' + str(train_info['loss_action']) + '   ' + str(
             train_info['loss_start']) + '   ' + str(train_info['loss_end'])
-        model_saver.save(sess, "./models", global_step=epoch)
+        model_saver.save(sess, "./models/tapg_model_epoch-", global_step=epoch)
 
         batch_window_list = TAPG_load_data.getBatchList(len(testDataDict["gt_bbox"]), config.batch_size, shuffle=False)
         mini_info = {"loss_action": [], "loss_start": [], "loss_end": [], "l2": []}
